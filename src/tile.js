@@ -180,7 +180,8 @@ $.Tile = function(level, x, y, bounds, exists, url, context2D) {
     this.lastTouchTime  = 0;
 };
 
-$.Tile.prototype = /** @lends OpenSeadragon.Tile.prototype */{
+/** @lends OpenSeadragon.Tile.prototype */
+$.Tile.prototype = {
 
     /**
      * Provides a string representation of this tiles level and (x,y)
@@ -190,6 +191,11 @@ $.Tile.prototype = /** @lends OpenSeadragon.Tile.prototype */{
      */
     toString: function() {
         return this.level + "/" + this.x + "_" + this.y;
+    },
+
+    // private
+    _hasTransparencyChannel: function() {
+        return this.context2D || this.url.match('.png');
     },
 
     /**
@@ -279,27 +285,6 @@ $.Tile.prototype = /** @lends OpenSeadragon.Tile.prototype */{
 
         context.globalAlpha = this.opacity;
 
-        //if we are supposed to be rendering fully opaque rectangle,
-        //ie its done fading or fading is turned off, and if we are drawing
-        //an image with an alpha channel, then the only way
-        //to avoid seeing the tile underneath is to clear the rectangle
-        if (context.globalAlpha === 1 &&
-                (this.context2D || this.url.match('.png'))) {
-            //clearing only the inside of the rectangle occupied
-            //by the png prevents edge flikering
-            context.clearRect(
-                position.x + 1,
-                position.y + 1,
-                size.x - 2,
-                size.y - 2
-            );
-
-        }
-
-        // This gives the application a chance to make image manipulation
-        // changes as we are rendering the image
-        drawingHandler({context: context, tile: this, rendered: rendered});
-
         if (typeof scale === 'number' && scale !== 1) {
             // draw tile at a different scale
             position = position.times(scale);
@@ -310,6 +295,25 @@ $.Tile.prototype = /** @lends OpenSeadragon.Tile.prototype */{
             // shift tile position slightly
             position = position.plus(translate);
         }
+
+        //if we are supposed to be rendering fully opaque rectangle,
+        //ie its done fading or fading is turned off, and if we are drawing
+        //an image with an alpha channel, then the only way
+        //to avoid seeing the tile underneath is to clear the rectangle
+        if (context.globalAlpha === 1 && this._hasTransparencyChannel()) {
+            //clearing only the inside of the rectangle occupied
+            //by the png prevents edge flikering
+            context.clearRect(
+                position.x + 1,
+                position.y + 1,
+                size.x - 2,
+                size.y - 2
+            );
+        }
+
+        // This gives the application a chance to make image manipulation
+        // changes as we are rendering the image
+        drawingHandler({context: context, tile: this, rendered: rendered});
 
         context.drawImage(
             rendered.canvas,
@@ -350,11 +354,14 @@ $.Tile.prototype = /** @lends OpenSeadragon.Tile.prototype */{
      * @param {Number} [scale=1] - Scale to be applied to position.
      * @return {OpenSeadragon.Point}
      */
-    getTranslationForEdgeSmoothing: function(scale) {
+    getTranslationForEdgeSmoothing: function(scale, canvasSize, sketchCanvasSize) {
         // The translation vector must have positive values, otherwise the image goes a bit off
         // the sketch canvas to the top and left and we must use negative coordinates to repaint it
-        // to the main canvas. And FF does not like it. It crashes the viewer.
-        return new $.Point(1, 1).minus(
+        // to the main canvas. In that case, some browsers throw:
+        // INDEX_SIZE_ERR: DOM Exception 1: Index or size was negative, or greater than the allowed value.
+        var x = Math.max(1, Math.ceil((sketchCanvasSize.x - canvasSize.x) / 2));
+        var y = Math.max(1, Math.ceil((sketchCanvasSize.y - canvasSize.y) / 2));
+        return new $.Point(x, y).minus(
             this.position
                 .times($.pixelDensityRatio)
                 .times(scale || 1)

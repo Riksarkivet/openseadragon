@@ -126,33 +126,13 @@
                 _this.maxLevel = _this.levels.length - 1;
 
                 _this.ready = true;
-                /**
-                 * Raised when a TileSource is opened and initialized.
-                 *
-                 * @event ready
-                 * @memberof OpenSeadragon.TileSource
-                 * @type {object}
-                 * @property {OpenSeadragon.TileSource} eventSource - A reference
-                 * to the TileSource which raised the event.
-                 * @property {Object} tileSource
-                 * @property {?Object} userData - Arbitrary subscriber-defined object.
-                 */
+
+                // Note: this event is documented elsewhere, in TileSource
                 _this.raiseEvent('ready', {tileSource: _this});
             });
 
             $.addEvent(image, 'error', function () {
-                /***
-                 * Raised when an error occurs loading a TileSource.
-                 *
-                 * @event open-failed
-                 * @memberof OpenSeadragon.TileSource
-                 * @type {object}
-                 * @property {OpenSeadragon.TileSource} eventSource - A reference
-                 * to the TileSource which raised the event.
-                 * @property {String} message
-                 * @property {String} source
-                 * @property {?Object} userData - Arbitrary subscriber-defined object.
-                 */
+                // Note: this event is documented elsewhere, in TileSource
                 _this.raiseEvent('open-failed', {
                     message: "Error loading image at " + url,
                     source: url

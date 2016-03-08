@@ -265,7 +265,8 @@
         }
     };
 
-    $.MouseTracker.prototype = /** @lends OpenSeadragon.MouseTracker.prototype */{
+    /** @lends OpenSeadragon.MouseTracker.prototype */
+    $.MouseTracker.prototype = {
 
         /**
          * Clean up any events or objects created by the tracker.
@@ -1117,7 +1118,9 @@
          */
         this.captureCount = 0;
     };
-    $.MouseTracker.GesturePointList.prototype = /** @lends OpenSeadragon.MouseTracker.GesturePointList.prototype */{
+
+    /** @lends OpenSeadragon.MouseTracker.GesturePointList.prototype */
+    $.MouseTracker.GesturePointList.prototype = {
         /**
          * @function
          * @returns {Number} Number of gesture points in the list.
@@ -1367,7 +1370,7 @@
                 eventParams = getCaptureEventParams( tracker, $.MouseTracker.havePointerEvents ? 'pointerevent' : pointerType );
                 // We emulate mouse capture by hanging listeners on the document object.
                 //    (Note we listen on the capture phase so the captured handlers will get called first)
-                if (isInIframe() && canAccessEvents(window.top)) {
+                if (isInIframe && canAccessEvents(window.top)) {
                     $.addEvent(
                         window.top,
                         eventParams.upName,
@@ -1410,7 +1413,7 @@
                 eventParams = getCaptureEventParams( tracker, $.MouseTracker.havePointerEvents ? 'pointerevent' : pointerType );
                 // We emulate mouse capture by hanging listeners on the document object.
                 //    (Note we listen on the capture phase so the captured handlers will get called first)
-                if (isInIframe() && canAccessEvents(window.top)) {
+                if (isInIframe && canAccessEvents(window.top)) {
                     $.removeEvent(
                         window.top,
                         eventParams.upName,
@@ -3265,26 +3268,22 @@
         }
     }
     
-    /**
-     * @function
-     * @private
-     * @inner
-     * @returns {Boolean} True if inside an iframe, otherwise false.
-     */
-    function isInIframe () {
+    // True if inside an iframe, otherwise false.
+    // @member {Boolean} isInIframe
+    // @private
+    // @inner
+    var isInIframe = (function() {
         try {
             return window.self !== window.top;
         } catch (e) {
             return true;
         }
-    }
-    
-    /**
-     * @function
-     * @private
-     * @inner
-     * @returns {Boolean} True if the target has access rights to events, otherwise false.
-     */
+    })();
+ 
+    // @function
+    // @private
+    // @inner
+    // @returns {Boolean} True if the target has access rights to events, otherwise false.
     function canAccessEvents (target) {
         try {
             return target.addEventListener && target.removeEventListener;

@@ -1,10 +1,33 @@
 OPENSEADRAGON CHANGELOG
 =======================
 
-2.1.1: (in progress)
+2.2.0: (in progress)
 
+* BREAKING CHANGE: Viewport.homeBounds, Viewport.contentSize, Viewport.contentAspectX and
+    Viewport.contentAspectY have been removed. (#846)
+* DEPRECATION: Viewport.setHomeBounds has been deprecated (#846)
+* DEPRECATION: the Viewport constructor is now ignoring the contentSize option (#846)
 * Tile edge smoothing at high zoom (#764)
 * Fixed issue with reference strip popping up virtual keyboard on mobile devices (#779)
+* Now supporting rotation in the Rect class (#782)
+* Drag outside of iframe now works better, as long as both pages are on the same domain (#790)
+* Coordinate conversion now takes rotation into account (#796)
+* Support tile-less IIIF as per LegacyTileSource (#816)
+* You can now give an empty string to the tabIndex option (#805)
+* Fixed issue with rotation and clicking in the navigator (#807)
+* Broadened the check for mime type in LegacyTileSource URLs to allow query strings (#819)
+* Added globalCompositeOperation option for tiledImage, to allow for different transfer modes (#814)
+* Added Viewer.addSimpleImage method for easily adding non-tiled images (#827)
+* DziTileSource now works properly with DZI files that have no extension (#835)
+* Fixed content clipping with rotation (#463, #567 and #833)
+* Fixed navigator not being rotated when viewport rotation is set in constructor (#840)
+* Fixed: Viewer.setMouseNavEnabled wasn't affecting all of the viewer's trackers (#845)
+* Fixed: with scrollToZoom disabled, the viewer caused page scrolling to slow down (#858)
+* Added Viewer.getOverlayById and Overlay.getBounds functions (#853)
+* Tiled images with 0 opacity no longer load their tiles or do drawing calculations (#859)
+* Fixed issue with edge smoothing with PNG tiles at high zoom (#860)
+* Fixed: Images with transparency were clearing images layered below them (#861)
+* Fixed issue causing HTML pages to jump unwantedly to the reference strip upon loading (#872)
 
 2.1.0:
 

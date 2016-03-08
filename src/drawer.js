@@ -132,7 +132,8 @@ $.Drawer = function( options ) {
     this.container.appendChild( this.canvas );
 };
 
-$.Drawer.prototype = /** @lends OpenSeadragon.Drawer.prototype */{
+/** @lends OpenSeadragon.Drawer.prototype */
+$.Drawer.prototype = {
     // deprecated
     addOverlay: function( element, location, placement, onDraw ) {
         $.console.error("drawer.addOverlay is deprecated. Use viewer.addOverlay instead.");
@@ -249,8 +250,9 @@ $.Drawer.prototype = /** @lends OpenSeadragon.Drawer.prototype */{
                 this.canvas.width = viewportSize.x;
                 this.canvas.height = viewportSize.y;
                 if ( this.sketchCanvas !== null ) {
-                    this.sketchCanvas.width = this.canvas.width;
-                    this.sketchCanvas.height = this.canvas.height;
+                    var sketchCanvasSize = this._calculateSketchCanvasSize();
+                    this.sketchCanvas.width = sketchCanvasSize.x;
+                    this.sketchCanvas.height = sketchCanvasSize.y;
                 }
             }
             this._clear();
@@ -267,13 +269,14 @@ $.Drawer.prototype = /** @lends OpenSeadragon.Drawer.prototype */{
     },
 
     /**
-     * Translates from OpenSeadragon viewer rectangle to drawer rectangle.
+     * Scale from OpenSeadragon viewer rectangle to drawer rectangle
+     * (ignoring rotation)
      * @param {OpenSeadragon.Rect} rectangle - The rectangle in viewport coordinate system.
      * @return {OpenSeadragon.Rect} Rectangle in drawer coordinate system.
      */
     viewportToDrawerRectangle: function(rectangle) {
-        var topLeft = this.viewport.pixelFromPoint(rectangle.getTopLeft(), true);
-        var size = this.viewport.deltaPixelsFromPoints(rectangle.getSize(), true);
+        var topLeft = this.viewport.pixelFromPointNoRotate(rectangle.getTopLeft(), true);
+        var size = this.viewport.deltaPixelsFromPointsNoRotate(rectangle.getSize(), true);
 
         return new $.Rect(
             topLeft.x * $.pixelDensityRatio,
@@ -293,22 +296,14 @@ $.Drawer.prototype = /** @lends OpenSeadragon.Drawer.prototype */{
      * @param {Float} [scale=1] - Apply a scale to tile position and size. Defaults to 1.
      * @param {OpenSeadragon.Point} [translate] A translation vector to offset tile position
      */
-    drawTile: function( tile, drawingHandler, useSketch, scale, translate ) {
+    drawTile: function(tile, drawingHandler, useSketch, scale, translate) {
         $.console.assert(tile, '[Drawer.drawTile] tile is required');
         $.console.assert(drawingHandler, '[Drawer.drawTile] drawingHandler is required');
 
-        if ( this.useCanvas ) {
-            var context = this._getContext( useSketch );
+        if (this.useCanvas) {
+            var context = this._getContext(useSketch);
             scale = scale || 1;
-            // TODO do this in a more performant way
-            // specifically, don't save,rotate,restore every time we draw a tile
-            if( this.viewport.degrees !== 0 ) {
-                this._offsetForRotation( tile, this.viewport.degrees, useSketch );
-                tile.drawCanvas( context, drawingHandler, scale, translate );
-                this._restoreRotationChanges( tile, useSketch );
-            } else {
-                tile.drawCanvas( context, drawingHandler, scale, translate );
-            }
+            tile.drawCanvas(context, drawingHandler, scale, translate);
         } else {
             tile.drawHTML( this.canvas );
         }
@@ -319,9 +314,23 @@ $.Drawer.prototype = /** @lends OpenSeadragon.Drawer.prototype */{
         if ( useSketch ) {
             if (this.sketchCanvas === null) {
                 this.sketchCanvas = document.createElement( "canvas" );
-                this.sketchCanvas.width = this.canvas.width;
-                this.sketchCanvas.height = this.canvas.height;
+                var sketchCanvasSize = this._calculateSketchCanvasSize();
+                this.sketchCanvas.width = sketchCanvasSize.x;
+                this.sketchCanvas.height = sketchCanvasSize.y;
                 this.sketchContext = this.sketchCanvas.getContext( "2d" );
+
+                // If the viewport is not currently rotated, the sketchCanvas
+                // will have the same size as the main canvas. However, if
+                // the viewport get rotated later on, we will need to resize it.
+                if (this.viewport.getRotation() === 0) {
+                    var self = this;
+                    this.viewer.addHandler('rotate', function resizeSketchCanvas() {
+                        self.viewer.removeHandler('rotate', resizeSketchCanvas);
+                        var sketchCanvasSize = self._calculateSketchCanvasSize();
+                        self.sketchCanvas.width = sketchCanvasSize.x;
+                        self.sketchCanvas.height = sketchCanvasSize.y;
+                    });
+                }
             }
             context = this.sketchContext;
         }
@@ -376,10 +385,11 @@ $.Drawer.prototype = /** @lends OpenSeadragon.Drawer.prototype */{
      * @param {Float} opacity The opacity of the blending.
      * @param {Float} [scale=1] The scale at which tiles were drawn on the sketch. Default is 1.
      *   Use scale to draw at a lower scale and then enlarge onto the main canvas.
-     * @param OpenSeadragon.Point} [translate] A translation vector that was used to draw the tiles
+     * @param {OpenSeadragon.Point} [translate] A translation vector that was used to draw the tiles
+     * @param {String} [options.compositeOperation] - How the image is composited onto other images; see compositeOperation in {@link OpenSeadragon.Options} for possible values.
      * @returns {undefined}
      */
-    blendSketch: function(opacity, scale, translate) {
+    blendSketch: function(opacity, scale, translate, compositeOperation) {
         if (!this.useCanvas || !this.sketchCanvas) {
             return;
         }
@@ -388,18 +398,30 @@ $.Drawer.prototype = /** @lends OpenSeadragon.Drawer.prototype */{
             translate :
             new $.Point(0, 0);
 
+        var widthExt = 0;
+        var heightExt = 0;
+        if (translate) {
+            var widthDiff = this.sketchCanvas.width - this.canvas.width;
+            var heightDiff = this.sketchCanvas.height - this.canvas.height;
+            widthExt = Math.round(widthDiff / 2);
+            heightExt = Math.round(heightDiff / 2);
+        }
+
         this.context.save();
         this.context.globalAlpha = opacity;
+        if (compositeOperation) {
+            this.context.globalCompositeOperation = compositeOperation;
+        }
         this.context.drawImage(
             this.sketchCanvas,
-            position.x,
-            position.y,
-            this.sketchCanvas.width * scale,
-            this.sketchCanvas.height * scale,
-            0,
-            0,
-            this.canvas.width,
-            this.canvas.height
+            position.x - widthExt * scale,
+            position.y - heightExt * scale,
+            (this.canvas.width + 2 * widthExt) * scale,
+            (this.canvas.height  + 2 * heightExt) * scale,
+            -widthExt,
+            -heightExt,
+            this.canvas.width + 2 * widthExt,
+            this.canvas.height + 2 * heightExt
         );
         this.context.restore();
     },
@@ -418,7 +440,7 @@ $.Drawer.prototype = /** @lends OpenSeadragon.Drawer.prototype */{
         context.fillStyle = this.debugGridColor;
 
         if ( this.viewport.degrees !== 0 ) {
-            this._offsetForRotation( tile, this.viewport.degrees );
+            this._offsetForRotation(this.viewport.degrees);
         }
 
         context.strokeRect(
@@ -480,7 +502,7 @@ $.Drawer.prototype = /** @lends OpenSeadragon.Drawer.prototype */{
         );
 
         if ( this.viewport.degrees !== 0 ) {
-            this._restoreRotationChanges( tile );
+            this._restoreRotationChanges();
         }
         context.restore();
     },
@@ -505,22 +527,32 @@ $.Drawer.prototype = /** @lends OpenSeadragon.Drawer.prototype */{
         }
     },
 
-    // private
-    _offsetForRotation: function( tile, degrees, useSketch ){
-        var cx = this.canvas.width / 2,
-            cy = this.canvas.height / 2;
+    /**
+     * Get the canvas size
+     * @param {Boolean} sketch If set to true return the size of the sketch canvas
+     * @returns {OpenSeadragon.Point} The size of the canvas
+     */
+    getCanvasSize: function(sketch) {
+        var canvas = this._getContext(sketch).canvas;
+        return new $.Point(canvas.width, canvas.height);
+    },
 
-        var context = this._getContext( useSketch );
+    // private
+    _offsetForRotation: function(degrees, useSketch) {
+        var cx = this.canvas.width / 2;
+        var cy = this.canvas.height / 2;
+
+        var context = this._getContext(useSketch);
         context.save();
 
         context.translate(cx, cy);
-        context.rotate( Math.PI / 180 * degrees);
+        context.rotate(Math.PI / 180 * degrees);
         context.translate(-cx, -cy);
     },
 
     // private
-    _restoreRotationChanges: function( tile, useSketch ){
-        var context = this._getContext( useSketch );
+    _restoreRotationChanges: function(useSketch) {
+        var context = this._getContext(useSketch);
         context.restore();
     },
 
@@ -531,6 +563,23 @@ $.Drawer.prototype = /** @lends OpenSeadragon.Drawer.prototype */{
         return {
             x: viewportSize.x * pixelDensityRatio,
             y: viewportSize.y * pixelDensityRatio
+        };
+    },
+
+    // private
+    _calculateSketchCanvasSize: function() {
+        var canvasSize = this._calculateCanvasSize();
+        if (this.viewport.getRotation() === 0) {
+            return canvasSize;
+        }
+        // If the viewport is rotated, we need a larger sketch canvas in order
+        // to support edge smoothing.
+        var sketchCanvasSize = Math.ceil(Math.sqrt(
+            canvasSize.x * canvasSize.x +
+            canvasSize.y * canvasSize.y));
+        return {
+            x: sketchCanvasSize,
+            y: sketchCanvasSize
         };
     }
 };

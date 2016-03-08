@@ -133,7 +133,8 @@
             true : options.checkResize;
     };
 
-    $.Overlay.prototype = /** @lends OpenSeadragon.Overlay.prototype */{
+    /** @lends OpenSeadragon.Overlay.prototype */
+    $.Overlay.prototype = {
 
         /**
          * @function
@@ -311,8 +312,15 @@
             this.placement  = location instanceof $.Point ?
                 placement :
                 $.OverlayPlacement.TOP_LEFT;
-        }
+        },
 
+        /**
+         * @function
+         * @returns {OpenSeadragon.Rect} overlay bounds
+         */
+        getBounds: function() {
+            return this.bounds.clone();
+        }
     };
 
 }( OpenSeadragon ));
