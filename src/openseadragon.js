@@ -2100,12 +2100,13 @@ if (typeof define === 'function' && define.amd) {
                 }
             };
 
-            if (withCredentials) {
-                request.withCredentials = true;
-            }
-
             try {
                 request.open( "GET", url, true );
+
+                if (withCredentials) {
+                    request.withCredentials = true;
+                }
+
                 request.send( null );
             } catch (e) {
                 var msg = e.message;
