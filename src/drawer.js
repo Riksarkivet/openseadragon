@@ -328,8 +328,7 @@ $.Drawer.prototype = {
                 // the viewport get rotated later on, we will need to resize it.
                 if (this.viewport.getRotation() === 0) {
                     var self = this;
-                    this.viewer.addHandler('rotate', function resizeSketchCanvas() {
-                        self.viewer.removeHandler('rotate', resizeSketchCanvas);
+                    this.viewer.addOnceHandler('rotate', function resizeSketchCanvas() {
                         var sketchCanvasSize = self._calculateSketchCanvasSize();
                         self.sketchCanvas.width = sketchCanvasSize.x;
                         self.sketchCanvas.height = sketchCanvasSize.y;
@@ -423,6 +422,24 @@ $.Drawer.prototype = {
             this.context.globalCompositeOperation = compositeOperation;
         }
         if (bounds) {
+            // Internet Explorer and Microsoft Edge throw IndexSizeError 
+            // when you call context.drawImage with negative x or y 
+            // or width or height greater than the canvas width or height respectively
+            if (bounds.x < 0) {
+                bounds.width += bounds.x;
+                bounds.x = 0;
+            }
+            if (bounds.width > this.canvas.width) {
+                bounds.width = this.canvas.width;
+            }
+            if (bounds.y < 0) {
+                bounds.height += bounds.y;
+                bounds.y = 0;
+            }
+            if (bounds.height > this.canvas.height) {
+                bounds.height = this.canvas.height;
+            }
+            
             this.context.drawImage(
                 this.sketchCanvas,
                 bounds.x,
@@ -464,7 +481,7 @@ $.Drawer.prototype = {
     },
 
     // private
-    drawDebugInfo: function( tile, count, i ){
+    drawDebugInfo: function(tile, count, i, tiledImage) {
         if ( !this.useCanvas ) {
             return;
         }
@@ -477,7 +494,14 @@ $.Drawer.prototype = {
         context.fillStyle = this.debugGridColor;
 
         if ( this.viewport.degrees !== 0 ) {
-            this._offsetForRotation(this.viewport.degrees);
+            this._offsetForRotation({degrees: this.viewport.degrees});
+        }
+        if (tiledImage.getRotation() !== 0) {
+            this._offsetForRotation({
+                degrees: tiledImage.getRotation(),
+                point: tiledImage.viewport.pixelFromPointNoRotate(
+                    tiledImage._getRotationPoint(true), true)
+            });
         }
 
         context.strokeRect(
@@ -541,6 +565,9 @@ $.Drawer.prototype = {
         if ( this.viewport.degrees !== 0 ) {
             this._restoreRotationChanges();
         }
+        if (tiledImage.getRotation() !== 0) {
+            this._restoreRotationChanges();
+        }
         context.restore();
     },
 
@@ -574,17 +601,22 @@ $.Drawer.prototype = {
         return new $.Point(canvas.width, canvas.height);
     },
 
-    // private
-    _offsetForRotation: function(degrees, useSketch) {
-        var cx = this.canvas.width / 2;
-        var cy = this.canvas.height / 2;
+    getCanvasCenter: function() {
+        return new $.Point(this.canvas.width / 2, this.canvas.height / 2);
+    },
 
-        var context = this._getContext(useSketch);
+    // private
+    _offsetForRotation: function(options) {
+        var point = options.point ?
+            options.point.times($.pixelDensityRatio) :
+            this.getCanvasCenter();
+
+        var context = this._getContext(options.useSketch);
         context.save();
 
-        context.translate(cx, cy);
-        context.rotate(Math.PI / 180 * degrees);
-        context.translate(-cx, -cy);
+        context.translate(point.x, point.y);
+        context.rotate(Math.PI / 180 * options.degrees);
+        context.translate(-point.x, -point.y);
     },
 
     // private

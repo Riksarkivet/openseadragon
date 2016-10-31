@@ -207,8 +207,8 @@
 
             Util.spyOnce(viewer.drawer, 'setClip', function(rect) {
                 var homeBounds = viewer.viewport.getHomeBounds();
-                var canvasClip = viewer.viewport
-                    .viewportToViewerElementRectangle(homeBounds);
+                var canvasClip = viewer.drawer
+                    .viewportToDrawerRectangle(homeBounds);
                 var precision = 0.00000001;
                 Util.assertRectangleEquals(rect, canvasClip, precision,
                     'clipping should be ' + canvasClip);
@@ -222,6 +222,28 @@
         });
     });
 
+    // ----------
+    asyncTest('clip-change event', function() {
+        expect(0);
+        var clip = new OpenSeadragon.Rect(100, 100, 800, 800);
+
+        viewer.addHandler('open', function() {
+            var image = viewer.world.getItemAt(0);
+            image.addOnceHandler('clip-change', function() {
+                image.addOnceHandler('clip-change', function() {
+                    start();
+                });
+                image.setClip(clip);
+            });
+            image.setClip(null);
+        });
+
+        viewer.open({
+            tileSource: '/test/data/testpattern.dzi'
+        });
+    });
+
+    // ----------
     asyncTest('getClipBounds', function() {
         var clip = new OpenSeadragon.Rect(100, 200, 800, 500);
 
@@ -292,6 +314,35 @@
         });
     });
 
+    // ----------
+    asyncTest('rotation', function() {
+
+        function testDefaultRotation() {
+            var image = viewer.world.getItemAt(0);
+            strictEqual(image.getRotation(), 0, 'image has default rotation');
+
+            image.setRotation(400);
+            strictEqual(image.getRotation(), 40, 'rotation is set correctly');
+
+            viewer.addOnceHandler('open', testTileSourceRotation);
+            viewer.open({
+                tileSource: '/test/data/testpattern.dzi',
+                degrees: -60
+            });
+        }
+
+        function testTileSourceRotation() {
+            var image = viewer.world.getItemAt(0);
+            strictEqual(image.getRotation(), 300, 'image has correct rotation');
+            start();
+        }
+
+        viewer.addOnceHandler('open', testDefaultRotation);
+        viewer.open({
+            tileSource: '/test/data/testpattern.dzi',
+        });
+    });
+
     asyncTest('fitBounds', function() {
 
         function assertRectEquals(actual, expected, message) {
@@ -338,6 +389,7 @@
         ]);
     });
 
+    // ----------
     asyncTest('fitBounds in constructor', function() {
 
         function assertRectEquals(actual, expected, message) {
@@ -383,6 +435,7 @@
             }]);
     });
 
+    // ----------
     asyncTest('fitBounds with clipping', function() {
 
         function assertRectEquals(actual, expected, message) {
@@ -426,4 +479,40 @@
                 fitBoundsPlacement: OpenSeadragon.Placement.TOP_LEFT
             }]);
     });
+
+    // ----------
+    asyncTest('fullyLoaded', function() {
+        viewer.addHandler('open', function openHandler() {
+            viewer.removeHandler('open', openHandler);
+
+            var image = viewer.world.getItemAt(0);
+            equal(image.getFullyLoaded(), false, 'not fully loaded at first');
+
+            var count = 0;
+
+            var fullyLoadedChangeHandler = function(event) {
+                if (count === 0) {
+                    equal(event.fullyLoaded, true, 'event includes true fullyLoaded property');
+                    equal(image.getFullyLoaded(), true, 'image is fully loaded after event');
+                    viewer.viewport.zoomBy(5, null, true);
+                } else if (count === 1) {
+                    equal(event.fullyLoaded, false, 'event includes false fullyLoaded property');
+                    equal(image.getFullyLoaded(), false, 'image is not fully loaded after zoom');
+                } else {
+                    image.removeHandler('fully-loaded-change', fullyLoadedChangeHandler);
+                    equal(image.getFullyLoaded(), true, 'image is once again fully loaded');
+                    start();
+                }
+
+                count++;
+            };
+
+            image.addHandler('fully-loaded-change', fullyLoadedChangeHandler);
+        });
+
+        viewer.open([{
+            tileSource: '/test/data/tall.dzi',
+        }]);
+    });
+
 })();
